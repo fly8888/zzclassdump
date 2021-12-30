@@ -1,0 +1,9 @@
+Package: com.zizi.zzclassdump
+Name: zzclassdump
+Depends: mobilesubstrate
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: An awesome MobileSubstrate tweak!
+Maintainer: zizi <bigboss.apt@gmail.com>
+Author: zizi <bigboss.apt@gmail.com>
+Section: Tweaks
