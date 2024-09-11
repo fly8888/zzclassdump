@@ -91,6 +91,7 @@
              *      kPropertyWeak              = 'W', // 'weak' property
              *      kPropertyStrong            = 'P', // property GC'able
              *      kPropertyNonAtomic         = 'N'  // property non-atomic
+             *      kPropertyOptional          = '?', // property optional
              *  };
              */
             switch (switchOnMe) {
@@ -129,6 +130,8 @@
                     break;
                 case 'N':
                     attributeName = @"nonatomic";
+                    break;
+                case '?':
                     break;
                 default:
                     NSLog(@"Unknown attribute code: %c", switchOnMe);
