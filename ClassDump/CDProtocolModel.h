@@ -7,8 +7,10 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "CDPropertyModel.h"
-#import "CDMethodModel.h"
+
+#import <CDPropertyModel.h>
+#import <CDMethodModel.h>
+#import <CDGenerationOptions.h>
 
 @interface CDProtocolModel : NSObject
 /// The Obj-C runtime @c Protocol
@@ -38,5 +40,24 @@
 ///   image the declaration was found in
 /// @param synthesizeStrip Remove methods and ivars synthesized from properties
 - (NSString *)linesWithComments:(BOOL)comments synthesizeStrip:(BOOL)synthesizeStrip;
+/// Generate an @c interface for the protocol
+/// @param comments Generate comments with information such as the
+///   image the declaration was found in
+/// @param synthesizeStrip Remove methods and ivars synthesized from properties
+- (CDSemanticString *)semanticLinesWithComments:(BOOL)comments synthesizeStrip:(BOOL)synthesizeStrip;
+
+/// Generate an @c interface for the protocol
+- (CDSemanticString *)semanticLinesWithOptions:(CDGenerationOptions *)options;
+
+/// Classes the protocol references in the declaration
+///
+/// In other words, all the classes that the compiler would need to see
+/// for the header to pass the type checking stage of compilation.
+- (NSSet<NSString *> *)classReferences;
+/// Protocols the protocol references in the declaration
+///
+/// In other words, all the protocols that the compiler would need to see
+/// for the header to pass the type checking stage of compilation.
+- (NSSet<NSString *> *)protocolReferences;
 
 @end

@@ -7,7 +7,7 @@
 //
 
 #import "CDIvarModel.h"
-#import "../Services/CDTypeParser.h"
+#import "CDTypeParser.h"
 
 @implementation CDIvarModel
 
@@ -19,9 +19,13 @@
     if (self = [self init]) {
         _backing = ivar;
         _name = @(ivar_getName(ivar));
-        _line = [CDTypeParser stringForEncoding:ivar_getTypeEncoding(ivar) variable:self.name];
+        _type = [CDTypeParser typeForEncoding:(ivar_getTypeEncoding(ivar) ?: "")];
     }
     return self;
+}
+
+- (CDSemanticString *)semanticString {
+    return [self.type semanticStringForVariableName:self.name];
 }
 
 - (BOOL)isEqual:(id)object {
@@ -35,7 +39,7 @@
 }
 
 - (NSString *)description {
-    return self.line;
+    return [self.type stringForVariableName:self.name];
 }
 
 @end

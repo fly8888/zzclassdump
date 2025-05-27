@@ -7,7 +7,7 @@
 //
 
 #import "CDPropertyModel.h"
-#import "../Services/CDTypeParser.h"
+#import "CDTypeParser.h"
 
 @implementation CDPropertyModel
 
@@ -23,9 +23,9 @@
         BOOL isReadOnly = NO, isDynamic = NO;
         
         const char *const propAttribs = property_getAttributes(property);
-        NSMutableArray<NSString *> *attributes = [NSMutableArray array];
+        NSMutableArray<CDPropertyAttribute *> *attributes = [NSMutableArray array];
         if (isClass) {
-            [attributes addObject:@"class"];
+            [attributes addObject:[CDPropertyAttribute attributeWithName:@"class" value:nil]];
         }
         
         for (const char *propSeek = propAttribs; propSeek < (propAttribs + strlen(propAttribs)); propSeek++) {
@@ -70,14 +70,12 @@
                 propSeek++;
             }
             
-            long valueLen = propSeek - attribHead;
+            NSUInteger const valueLen = propSeek - attribHead;
             if (valueLen > 0) {
                 attributeValue = [[NSString alloc] initWithBytes:attribHead length:valueLen encoding:NSUTF8StringEncoding];
             }
             
-            /*
-             * this enum is in llvm/clang/lib/AST/ASTContext.cpp
-             * see getObjCEncodingForPropertyDecl
+            /* per https://github.com/llvm/llvm-project/blob/b7f97d3661/clang/lib/AST/ASTContext.cpp#L7878-L7973
              *
              *  enum PropertyAttributes {
              *      kPropertyReadOnly          = 'R', // property is read-only.
@@ -90,9 +88,9 @@
              *      kPropertyType              = 'T', // followed by old-style type encoding.
              *      kPropertyWeak              = 'W', // 'weak' property
              *      kPropertyStrong            = 'P', // property GC'able
-             *      kPropertyNonAtomic         = 'N'  // property non-atomic
+             *      kPropertyNonAtomic         = 'N', // property non-atomic
              *      kPropertyOptional          = '?', // property optional
-             *  };
+             * };
              */
             switch (switchOnMe) {
                 case 'R':
@@ -120,7 +118,7 @@
                     _iVar = attributeValue;
                     break;
                 case 'T':
-                    _type = [CDTypeParser stringForEncodingStart:attribHead end:propSeek variable:self.name error:NULL];
+                    _type = [CDTypeParser typeForEncodingStart:attribHead end:propSeek error:NULL];
                     break;
                 case 'W':
                     attributeName = @"weak";
@@ -132,19 +130,15 @@
                     attributeName = @"nonatomic";
                     break;
                 case '?':
+                    // @optional in a protocol
                     break;
                 default:
-                    NSLog(@"Unknown attribute code: %c", switchOnMe);
-                    assert(0);
+                    NSAssert(NO, @"Unknown attribute code: %c", switchOnMe);
                     break;
             }
             
             if (attributeName) {
-                if (attributeValue) {
-                    attributeName = [attributeName stringByAppendingString:@"="];
-                    attributeName = [attributeName stringByAppendingString:attributeValue];
-                }
-                [attributes addObject:attributeName];
+                [attributes addObject:[CDPropertyAttribute attributeWithName:attributeName value:attributeValue]];
             }
         }
         
@@ -154,12 +148,8 @@
                 _getter = [self.name copy];
             }
             if (!self.setter && !isReadOnly) {
-                // this is likely not the correct implementation
-                // someone recommended this, so until there's another solution
-                // this is the implementation that will be used
-                // preferably a link to the Clang implementation or the Obj-C spec
-                // should be here before this is "production ready"
-                unichar realFirstChar = [self.name characterAtIndex:0];
+                // per https://github.com/llvm/llvm-project/blob/86616443bf/clang/lib/Basic/IdentifierTable.cpp#L756-L762
+                unichar const realFirstChar = [self.name characterAtIndex:0];
                 NSString *firstChar = [NSString stringWithCharacters:&realFirstChar length:1];
                 _setter = [NSString stringWithFormat:@"set%@%@:", firstChar.uppercaseString, [self.name substringFromIndex:1]];
             }
@@ -168,8 +158,35 @@
     return self;
 }
 
-- (void)overrideType:(NSString *)type {
+- (void)overrideType:(CDParseType *)type {
     _type = type;
+}
+
+- (CDSemanticString *)semanticString {
+    CDSemanticString *build = [CDSemanticString new];
+    [build appendString:@"@property" semanticType:CDSemanticTypeKeyword];
+    [build appendString:@" " semanticType:CDSemanticTypeStandard];
+    
+    NSArray<CDPropertyAttribute *> *attributes = self.attributes;
+    NSUInteger const attributeCount = attributes.count;
+    if (attributeCount > 0) {
+        [build appendString:@"(" semanticType:CDSemanticTypeStandard];
+        [attributes enumerateObjectsUsingBlock:^(CDPropertyAttribute *attribute, NSUInteger idx, BOOL *stop) {
+            [build appendString:attribute.name semanticType:CDSemanticTypeKeyword];
+            
+            NSString *attributeValue = attribute.value;
+            if (attributeValue != nil) {
+                [build appendString:@"=" semanticType:CDSemanticTypeStandard];
+                [build appendString:attributeValue semanticType:CDSemanticTypeVariable];
+            }
+            if ((idx + 1) < attributeCount) {
+                [build appendString:@", " semanticType:CDSemanticTypeStandard];
+            }
+        }];
+        [build appendString:@") " semanticType:CDSemanticTypeStandard];
+    }
+    [build appendSemanticString:[self.type semanticStringForVariableName:self.name]];
+    return build;
 }
 
 static BOOL _NSStringNullableEqual(NSString *a, NSString *b) {
@@ -186,18 +203,16 @@ static BOOL _NSStringNullableEqual(NSString *a, NSString *b) {
     return NO;
 }
 
+- (NSUInteger)hash {
+    return self.name.hash;
+}
+
 - (NSString *)description {
-    NSMutableString *ret = [NSMutableString stringWithString:@"@property "];
-    NSArray<NSString *> *attributes = self.attributes;
-    if (attributes.count != 0) {
-        [ret appendFormat:@"(%@) ", [attributes componentsJoinedByString:@", "]];
-    }
-    [ret appendString:self.type];
-    return ret;
+    return [[self semanticString] string];
 }
 
 - (NSString *)debugDescription {
-    return [NSString stringWithFormat:@"<%@: %p> {type: '%@', attributes: %@, "
+    return [NSString stringWithFormat:@"<%@: %p> {type: %@, attributes: %@, "
             "ivar: '%@', getter: '%@', setter: '%@'}",
             [self class], self, self.type, self.attributes,
             self.iVar, self.getter, self.setter];

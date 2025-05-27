@@ -1,6 +1,6 @@
 TARGET = iphone:latest:8.0
 
-export THEOS_DEVICE_IP = 127.0.0.1
+export THEOS_DEVICE_IP = localhost
 export THEOS_DEVICE_PORT = 2222
 export ARCHS = arm64
 export GO_EASY_ON_ME = 1
@@ -9,9 +9,11 @@ export DEBUG = 0
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = zzclassdump
+ADDITIONAL_CFLAGS += -I$(THEOS_PROJECT_DIR)/ClassDump # 假设 ClassDump 是你的模块根目录
 
 zzclassdump_FILES = $(wildcard ./*.xm)
-zzclassdump_FILES += $(wildcard ./*/*/*.m)
+zzclassdump_FILES += $(wildcard ./ClassDump/*.m)
+
 
 #开启自动内存管理模式 
 ADDITIONAL_OBJCFLAGS =-fobjc-arc 
@@ -20,6 +22,8 @@ ADDITIONAL_OBJCFLAGS =-fobjc-arc
 #链接库文件
 zzclassdump_FRAMEWORKS = UIKit Foundation 
 # zzclassdump_PRIVATE_FRAMEWORKS  = 
+# ADDITIONAL_CFLAGS = -I$(THEOS_PROJECT_DIR)
+
 
 # HikariObfuscator 设置
 # TARGET_CC = ~/HikariObfuscator/Build/bin/clang 
